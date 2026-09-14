@@ -1476,6 +1476,24 @@ button:active, .btn-touch:active {
     </div>
     
     <p class="text-[11px] text-slate-500 mt-6 font-bold">Default PIN: 1234</p>
+
+    <!-- ☁️ First-Time Cloud Setup -->
+    <div class="mt-4 w-full max-w-[300px]">
+      <button onclick="Auth.toggleCloudSetup()" class="w-full text-[11px] text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5 py-2 border border-slate-700 rounded-2xl hover:border-slate-500 transition-all">
+        ☁️ First time on this device? Connect Cloud
+      </button>
+      <div id="lock-cloud-setup-panel" class="hidden mt-3 bg-slate-800 rounded-2xl p-4 space-y-3 border border-slate-700">
+        <p class="text-[11px] text-slate-400 text-center">Enter Cloud DB credentials to load your team PINs</p>
+        <input type="text" id="lock-cloud-url" placeholder="https://xxxx.supabase.co"
+          class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
+        <input type="password" id="lock-cloud-key" placeholder="Publishable key (sb_publishable_...)"
+          class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
+        <button onclick="Auth.connectCloudAndLogin()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-2.5 rounded-xl active:scale-95 transition-all">
+          ☁️ Connect & Load Team PINs
+        </button>
+        <p id="lock-cloud-status" class="text-[10px] text-center text-slate-400 min-h-[1rem]"></p>
+      </div>
+    </div>
   </div>
 
 
@@ -13455,6 +13473,105 @@ const Auth = {
       await db.company.update(company.id, { pin: newPin });
     }
     return { success: true, message: 'Master security PIN updated successfully!' };
+  },
+
+  // Toggle the cloud setup panel on lock screen
+  toggleCloudSetup() {
+    const panel = document.getElementById('lock-cloud-setup-panel');
+    if (panel) {
+      panel.classList.toggle('hidden');
+      // Pre-fill if already saved
+      const savedUrl = localStorage.getItem('spice_pos_supabase_url') || '';
+      const urlInput = document.getElementById('lock-cloud-url');
+      if (urlInput && savedUrl) urlInput.value = savedUrl;
+    }
+  },
+
+  // Connect to Supabase from lock screen and pull team users
+  async connectCloudAndLogin() {
+    const urlInput = document.getElementById('lock-cloud-url');
+    const keyInput = document.getElementById('lock-cloud-key');
+    const statusEl = document.getElementById('lock-cloud-status');
+
+    const url = (urlInput?.value || '').trim().replace(/\/$/, '').replace(/\/rest\/v1\/?$/, '');
+    const key = (keyInput?.value || '').trim();
+
+    if (!url || !key) {
+      if (statusEl) statusEl.textContent = '⚠️ Please enter both URL and Key.';
+      return;
+    }
+
+    if (statusEl) statusEl.textContent = '⏳ Connecting to Cloud...';
+
+    try {
+      // Save config
+      localStorage.setItem('spice_pos_supabase_url', url);
+      localStorage.setItem('spice_pos_supabase_key', key);
+
+      // Also save to company record
+      const company = await db.company.toCollection().first();
+      if (company) {
+        await db.company.update(company.id, { supabaseUrl: url, supabaseKey: key });
+      }
+
+      // Fetch users directly from Supabase
+      const res = await fetch(`${url}/rest/v1/users?select=*`, {
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${key}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        if (statusEl) statusEl.textContent = `❌ Error: ${res.status} - Check URL/Key`;
+        return;
+      }
+
+      const remoteUsers = await res.json();
+      if (!Array.isArray(remoteUsers) || remoteUsers.length === 0) {
+        if (statusEl) statusEl.textContent = '⚠️ No users found in Cloud DB.';
+        return;
+      }
+
+      // Upsert users into local IndexedDB
+      let count = 0;
+      for (const u of remoteUsers) {
+        const local = await db.users.where('username').equals(u.username).first();
+        const mapped = {
+          username: u.username,
+          fullName: u.full_name,
+          role: u.role || 'rep',
+          pin: u.pin,
+          phone: u.phone || '',
+          assignedRouteId: u.assigned_route_id || null,
+          isActive: u.is_active !== false,
+          createdAt: u.created_at,
+          updatedAt: u.updated_at,
+          isSynced: true
+        };
+        if (!local) {
+          await db.users.add(mapped);
+        } else {
+          await db.users.update(local.id, mapped);
+        }
+        count++;
+      }
+
+      if (statusEl) statusEl.textContent = `✅ ${count} team members loaded! Enter your PIN now.`;
+
+      // Hide panel after success
+      setTimeout(() => {
+        const panel = document.getElementById('lock-cloud-setup-panel');
+        if (panel) panel.classList.add('hidden');
+        if (statusEl) statusEl.textContent = '';
+      }, 3000);
+
+    } catch (err) {
+      console.error('[Cloud Login Setup]:', err);
+      if (statusEl) statusEl.textContent = `❌ Failed: ${err.message}`;
+    }
   }
 };
 
