@@ -650,10 +650,10 @@ button:active, .btn-touch:active {
             <div id="pos-rep-today-cards" class="text-sm sm:text-base font-black text-emerald-300 mt-0.5">0</div>
             <span class="text-[8px] text-emerald-400 font-semibold">කාඩ් ගණන</span>
           </div>
-          <div class="bg-amber-950/60 p-2 rounded-2xl border border-amber-700/50">
-            <span class="text-[9px] uppercase font-bold text-amber-300 block">Packets</span>
-            <div id="pos-rep-today-packets" class="text-sm sm:text-base font-black text-amber-300 mt-0.5">0</div>
-            <span class="text-[8px] text-amber-400 font-semibold">පැකට් ගණන</span>
+          <div class="bg-red-950/60 p-2 rounded-2xl border border-red-700/50">
+            <span class="text-[9px] uppercase font-bold text-red-300 block">Day Returns</span>
+            <div id="pos-rep-today-returns" class="text-sm sm:text-base font-black text-red-300 mt-0.5">0</div>
+            <span class="text-[8px] text-red-400 font-semibold">ආපසු/මාරු</span>
           </div>
         </div>
       </div>
@@ -1338,7 +1338,7 @@ button:active, .btn-touch:active {
        BOTTOM FIXED MOBILE NAVIGATION BAR (6 Primary Tabs with Top 10)
        ========================================================================= -->
   <nav class="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-slate-100 bottom-nav-safe shadow-2xl shadow-slate-900/10">
-    <div class="max-w-lg mx-auto grid grid-cols-6 py-1.5 px-1">
+    <div id="bottom-nav-inner" class="max-w-lg mx-auto grid grid-cols-6 py-1.5 px-1">
       <button onclick="UI.switchTab('dashboard')" data-tab="dashboard" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-emerald-600 font-black text-[10px]">
         <div class="nav-icon-wrap w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center text-sm shadow-md shadow-violet-500/30">📊</div>
         <span class="mt-0.5 truncate">Home</span>
@@ -12350,9 +12350,8 @@ async function initDatabaseDefaults() {
         receiptFooter: 'Thank you for your business! / ස්තූතියි!',
         pin: '1234',
         printerWidth: '58mm',
-        logoBase64: '',
         supabaseUrl: 'https://qetyvorqsgjetgmdrexz.supabase.co',
-        supabaseKey: localStorage.getItem('spice_pos_supabase_key') || '',
+        supabaseKey: 'sb_publishable_nz9g4xezWuOCO6tq0gr_Sg_Ihkk-LqI',
         lastSyncAt: null
       });
     }
@@ -12665,11 +12664,11 @@ const CloudSync = {
     try {
       const company = await db.company.toCollection().first();
       let url = company?.supabaseUrl || localStorage.getItem('spice_pos_supabase_url') || 'https://qetyvorqsgjetgmdrexz.supabase.co';
-      let key = company?.supabaseKey || localStorage.getItem('spice_pos_supabase_key') || '';
+      let key = company?.supabaseKey || localStorage.getItem('spice_pos_supabase_key') || 'sb_publishable_nz9g4xezWuOCO6tq0gr_Sg_Ihkk-LqI';
       url = (url || 'https://qetyvorqsgjetgmdrexz.supabase.co').trim().replace(/\/$/, '').replace(/\/rest\/v1\/?$/, '');
-      return { url, key: (key || '').trim() };
+      return { url, key: (key || 'sb_publishable_nz9g4xezWuOCO6tq0gr_Sg_Ihkk-LqI').trim() };
     } catch {
-      return { url: 'https://qetyvorqsgjetgmdrexz.supabase.co', key: '' };
+      return { url: 'https://qetyvorqsgjetgmdrexz.supabase.co', key: 'sb_publishable_nz9g4xezWuOCO6tq0gr_Sg_Ihkk-LqI' };
     }
   },
 
@@ -13469,11 +13468,82 @@ const Auth = {
       else el.classList.add('hidden');
     });
 
-    // Restrict sensitive report columns & cards
-    const profitCards = document.querySelectorAll('.profit-metric-card');
-    profitCards.forEach(c => {
-      c.style.display = isAdmin ? '' : 'none';
-    });
+    // 6. Role-Specific Tailored Bottom Navigation Bar
+    const navInner = document.getElementById('bottom-nav-inner');
+    if (navInner) {
+      if (isRep) {
+        // Sales Rep Navigation: Sale (POS), Shops, Routes, Logout
+        navInner.className = 'max-w-lg mx-auto grid grid-cols-4 py-1.5 px-1';
+        navInner.innerHTML = `
+          <button onclick="UI.switchTab('pos')" data-tab="pos" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-emerald-600 font-black text-[10px]">
+            <div class="nav-icon-wrap w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-white flex items-center justify-center text-base shadow-md shadow-orange-400/30">🛒</div>
+            <span class="mt-0.5 truncate">Sale (බිල්)</span>
+          </button>
+          <button onclick="UI.switchTab('shops')" data-tab="shops" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-500 text-[10px]">
+            <div class="nav-icon-wrap w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center text-base shadow-md shadow-purple-500/30">🏪</div>
+            <span class="mt-0.5 truncate">Shops (කඩවල්)</span>
+          </button>
+          <button onclick="UI.switchTab('routes')" data-tab="routes" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-500 text-[10px]">
+            <div class="nav-icon-wrap w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 text-white flex items-center justify-center text-base shadow-md shadow-blue-500/30">🗺️</div>
+            <span class="mt-0.5 truncate">Routes (මාර්ග)</span>
+          </button>
+          <button onclick="Auth.lockApp()" class="flex flex-col items-center justify-center py-1 text-red-500 text-[10px]">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-rose-700 text-white flex items-center justify-center text-base shadow-md shadow-red-500/30">🔒</div>
+            <span class="mt-0.5 truncate font-bold">Logout</span>
+          </button>
+        `;
+      } else if (isDelivery) {
+        // Delivery Driver Navigation: Orders, Collect, Shops, Logout
+        navInner.className = 'max-w-lg mx-auto grid grid-cols-4 py-1.5 px-1';
+        navInner.innerHTML = `
+          <button onclick="UI.switchTab('production')" data-tab="production" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-emerald-600 font-black text-[10px]">
+            <div class="nav-icon-wrap w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 text-white flex items-center justify-center text-base shadow-md shadow-sky-400/30">📦</div>
+            <span class="mt-0.5 truncate">Orders (බෙදාහැරීම්)</span>
+          </button>
+          <button onclick="UI.switchTab('collections')" data-tab="collections" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-500 text-[10px]">
+            <div class="nav-icon-wrap w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-green-600 text-white flex items-center justify-center text-base shadow-md shadow-emerald-400/30">💵</div>
+            <span class="mt-0.5 truncate">Collect (ණය)</span>
+          </button>
+          <button onclick="UI.switchTab('shops')" data-tab="shops" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-500 text-[10px]">
+            <div class="nav-icon-wrap w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center text-base shadow-md shadow-purple-500/30">🏪</div>
+            <span class="mt-0.5 truncate">Shops (කඩවල්)</span>
+          </button>
+          <button onclick="Auth.lockApp()" class="flex flex-col items-center justify-center py-1 text-red-500 text-[10px]">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-rose-700 text-white flex items-center justify-center text-base shadow-md shadow-red-500/30">🔒</div>
+            <span class="mt-0.5 truncate font-bold">Logout</span>
+          </button>
+        `;
+      } else {
+        // Admin Navigation: Full 6 Tabs
+        navInner.className = 'max-w-lg mx-auto grid grid-cols-6 py-1.5 px-1';
+        navInner.innerHTML = `
+          <button onclick="UI.switchTab('dashboard')" data-tab="dashboard" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-emerald-600 font-black text-[10px]">
+            <div class="nav-icon-wrap w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center text-sm shadow-md shadow-violet-500/30">📊</div>
+            <span class="mt-0.5 truncate">Home</span>
+          </button>
+          <button onclick="UI.switchTab('pos')" data-tab="pos" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-500 text-[10px]">
+            <div class="nav-icon-wrap w-8 h-8 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-white flex items-center justify-center text-sm shadow-md shadow-orange-400/30">🛒</div>
+            <span class="mt-0.5 truncate">Sale</span>
+          </button>
+          <button onclick="UI.switchTab('production')" data-tab="production" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-500 text-[10px]">
+            <div class="nav-icon-wrap w-8 h-8 rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 text-white flex items-center justify-center text-sm shadow-md shadow-sky-400/30">📦</div>
+            <span class="mt-0.5 truncate">Orders</span>
+          </button>
+          <button onclick="UI.switchTab('best-shops')" data-tab="best-shops" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-500 text-[10px]">
+            <div class="nav-icon-wrap w-8 h-8 rounded-xl bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 text-white flex items-center justify-center text-sm shadow-md shadow-amber-400/40">🏆</div>
+            <span class="mt-0.5 truncate font-extrabold text-amber-700">Top 10</span>
+          </button>
+          <button onclick="UI.switchTab('collections')" data-tab="collections" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-500 text-[10px]">
+            <div class="nav-icon-wrap w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-green-600 text-white flex items-center justify-center text-sm shadow-md shadow-emerald-400/30">💵</div>
+            <span class="mt-0.5 truncate">Collect</span>
+          </button>
+          <button onclick="UI.openModal('modal-more-menu')" class="flex flex-col items-center justify-center py-1 text-slate-500 text-[10px]">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 text-white flex items-center justify-center text-sm shadow-md">☰</div>
+            <span class="mt-0.5 truncate">More</span>
+          </button>
+        `;
+      }
+    }
   },
 
   // Update Header User Profile Badge
@@ -14270,10 +14340,9 @@ const POS = {
       const totalAmount = deliveredOrPending.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
       const totalBills = deliveredOrPending.length;
 
-      // Calculate total card units & packet units sold today
+      // Calculate total card units sold today
       const saleIds = deliveredOrPending.map(s => s.id);
       let totalCardsCount = 0;
-      let totalPacketsCount = 0;
 
       if (saleIds.length > 0) {
         const items = await db.saleItems.where('saleId').anyOf(saleIds).toArray();
@@ -14282,21 +14351,33 @@ const POS = {
           if ((item.unit || '').toLowerCase() === 'card') {
             totalCardsCount += qty;
           } else {
-            totalPacketsCount += qty;
+            totalCardsCount += Math.floor(qty / 20); // convert loose to cards if applicable
           }
         }
+      }
+
+      // Calculate today's returns
+      let totalReturnsCount = 0;
+      if (db.salesReturns) {
+        const returns = await db.salesReturns
+          .filter(r => new Date(r.date) >= todayStart)
+          .toArray();
+        const repReturns = isRep
+          ? returns.filter(r => r.repId === user.id || r.repName === user.fullName || r.repName === user.username)
+          : returns;
+        totalReturnsCount = repReturns.reduce((sum, r) => sum + (Number(r.qty) || 0), 0);
       }
 
       // Update DOM
       const salesEl = document.getElementById('pos-rep-today-sales');
       const billsEl = document.getElementById('pos-rep-today-bills');
       const cardsEl = document.getElementById('pos-rep-today-cards');
-      const packetsEl = document.getElementById('pos-rep-today-packets');
+      const returnsEl = document.getElementById('pos-rep-today-returns');
 
       if (salesEl) salesEl.textContent = UI.formatCurrency(totalAmount);
       if (billsEl) billsEl.textContent = `${totalBills} Bills`;
       if (cardsEl) cardsEl.textContent = totalCardsCount;
-      if (packetsEl) packetsEl.textContent = totalPacketsCount;
+      if (returnsEl) returnsEl.textContent = `${totalReturnsCount} Items`;
     } catch (err) {
       console.error('Error loading Rep daily summary:', err);
     }
