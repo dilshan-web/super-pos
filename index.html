@@ -12848,11 +12848,10 @@ const CloudSync = {
     const localRoutes = await db.routes.toArray();
     if (localRoutes.length > 0) {
       const payload = localRoutes.map(r => ({
-        id: r.id,
         name: r.name,
         description: r.description || ''
       }));
-      await this.apiRequest('routes', 'POST', payload, {
+      await this.apiRequest('routes?on_conflict=name', 'POST', payload, {
         'Prefer': 'resolution=merge-duplicates,return=representation'
       });
     }
@@ -12861,11 +12860,11 @@ const CloudSync = {
     const remoteRoutes = await this.apiRequest('routes?select=*');
     if (Array.isArray(remoteRoutes)) {
       for (const r of remoteRoutes) {
-        const exists = await db.routes.get(r.id);
-        if (!exists) {
-          await db.routes.add({ id: r.id, name: r.name, description: r.description || '' });
+        const local = await db.routes.where('name').equals(r.name).first();
+        if (!local) {
+          await db.routes.add({ name: r.name, description: r.description || '', isSynced: true });
         } else {
-          await db.routes.update(r.id, { name: r.name, description: r.description || '' });
+          await db.routes.update(local.id, { description: r.description || '', isSynced: true });
         }
       }
     }
@@ -12875,16 +12874,15 @@ const CloudSync = {
     const localUsers = await db.users.toArray();
     if (localUsers.length > 0) {
       const payload = localUsers.map(u => ({
-        id: u.id,
         username: u.username,
-        full_name: u.fullName,
+        full_name: u.fullName || u.username,
         role: u.role || 'rep',
         pin: u.pin || '1234',
         phone: u.phone || '',
         assigned_route_id: u.assignedRouteId || null,
         is_active: u.isActive !== false
       }));
-      await this.apiRequest('users', 'POST', payload, {
+      await this.apiRequest('users?on_conflict=username', 'POST', payload, {
         'Prefer': 'resolution=merge-duplicates,return=representation'
       });
     }
@@ -12892,9 +12890,8 @@ const CloudSync = {
     const remoteUsers = await this.apiRequest('users?select=*');
     if (Array.isArray(remoteUsers)) {
       for (const u of remoteUsers) {
-        const local = await db.users.get(u.id);
+        const local = await db.users.where('username').equals(u.username).first();
         const mapped = {
-          id: u.id,
           username: u.username,
           fullName: u.full_name,
           role: u.role,
@@ -12902,12 +12899,14 @@ const CloudSync = {
           phone: u.phone,
           assignedRouteId: u.assigned_route_id,
           isActive: u.is_active,
-          createdAt: u.created_at
+          createdAt: u.created_at,
+          updatedAt: u.updated_at,
+          isSynced: true
         };
         if (!local) {
           await db.users.add(mapped);
         } else {
-          await db.users.update(u.id, mapped);
+          await db.users.update(local.id, mapped);
         }
       }
     }
@@ -12917,7 +12916,6 @@ const CloudSync = {
     const localProducts = await db.products.toArray();
     if (localProducts.length > 0) {
       const payload = localProducts.map(p => ({
-        id: p.id,
         name: p.name,
         unit: p.unit || 'Card',
         cost_price: p.costPrice || 0,
@@ -12925,7 +12923,7 @@ const CloudSync = {
         category: p.category || 'Cards',
         is_active: p.isActive !== false
       }));
-      await this.apiRequest('products', 'POST', payload, {
+      await this.apiRequest('products?on_conflict=name', 'POST', payload, {
         'Prefer': 'resolution=merge-duplicates,return=representation'
       });
     }
@@ -12933,20 +12931,20 @@ const CloudSync = {
     const remoteProducts = await this.apiRequest('products?select=*');
     if (Array.isArray(remoteProducts)) {
       for (const p of remoteProducts) {
-        const local = await db.products.get(p.id);
+        const local = await db.products.where('name').equals(p.name).first();
         const mapped = {
-          id: p.id,
           name: p.name,
           unit: p.unit,
           costPrice: Number(p.cost_price),
           sellingPrice: Number(p.selling_price),
           category: p.category,
-          isActive: p.is_active !== false
+          isActive: p.is_active !== false,
+          isSynced: true
         };
         if (!local) {
           await db.products.add(mapped);
         } else {
-          await db.products.update(p.id, mapped);
+          await db.products.update(local.id, mapped);
         }
       }
     }
@@ -12956,8 +12954,6 @@ const CloudSync = {
     const localShops = await db.shops.toArray();
     if (localShops.length > 0) {
       const payload = localShops.map(s => ({
-        id: s.id,
-        route_id: s.routeId || null,
         name: s.name,
         owner_name: s.ownerName || '',
         phone: s.phone || '',
@@ -12965,9 +12961,9 @@ const CloudSync = {
         photo_base64: s.photoBase64 || '',
         current_credit: s.currentCredit || 0,
         is_open: s.isOpen !== false,
-        qr_data: s.qrData || `SHOPPOS:${s.id}`
+        qr_data: s.qrData || `SHOPPOS:${s.name}`
       }));
-      await this.apiRequest('shops', 'POST', payload, {
+      await this.apiRequest('shops?on_conflict=name', 'POST', payload, {
         'Prefer': 'resolution=merge-duplicates,return=representation'
       });
     }
@@ -12975,9 +12971,8 @@ const CloudSync = {
     const remoteShops = await this.apiRequest('shops?select=*');
     if (Array.isArray(remoteShops)) {
       for (const s of remoteShops) {
-        const local = await db.shops.get(s.id);
+        const local = await db.shops.where('name').equals(s.name).first();
         const mapped = {
-          id: s.id,
           routeId: s.route_id,
           name: s.name,
           ownerName: s.owner_name,
@@ -12986,12 +12981,13 @@ const CloudSync = {
           photoBase64: s.photo_base64,
           currentCredit: Number(s.current_credit || 0),
           isOpen: s.is_open !== false,
-          qrData: s.qr_data || `SHOPPOS:${s.id}`
+          qrData: s.qr_data || `SHOPPOS:${s.name}`,
+          isSynced: true
         };
         if (!local) {
           await db.shops.add(mapped);
         } else {
-          await db.shops.update(s.id, mapped);
+          await db.shops.update(local.id, mapped);
         }
       }
     }
@@ -13002,7 +12998,6 @@ const CloudSync = {
     const localSales = await db.sales.toArray();
     if (localSales.length > 0) {
       const salesPayload = localSales.map(s => ({
-        id: s.id,
         invoice_no: s.invoiceNo,
         date: s.date,
         delivery_date: s.deliveryDate || null,
@@ -13020,7 +13015,7 @@ const CloudSync = {
         cancel_reason: s.cancelReason || '',
         note: s.note || ''
       }));
-      await this.apiRequest('sales', 'POST', salesPayload, {
+      await this.apiRequest('sales?on_conflict=invoice_no', 'POST', salesPayload, {
         'Prefer': 'resolution=merge-duplicates,return=representation'
       });
     }
@@ -13029,7 +13024,6 @@ const CloudSync = {
     const localItems = await db.saleItems.toArray();
     if (localItems.length > 0) {
       const itemsPayload = localItems.map(i => ({
-        id: i.id,
         sale_id: i.saleId,
         product_id: i.productId || null,
         product_name: i.productName,
@@ -13050,9 +13044,8 @@ const CloudSync = {
     const remoteSales = await this.apiRequest('sales?select=*');
     if (Array.isArray(remoteSales)) {
       for (const s of remoteSales) {
-        const local = await db.sales.get(s.id);
+        const local = await db.sales.where('invoiceNo').equals(s.invoice_no).first();
         const mapped = {
-          id: s.id,
           invoiceNo: s.invoice_no,
           date: s.date,
           deliveryDate: s.delivery_date,
@@ -13068,12 +13061,13 @@ const CloudSync = {
           creditAmount: Number(s.credit_amount),
           paymentType: s.payment_type,
           cancelReason: s.cancel_reason,
-          note: s.note
+          note: s.note,
+          isSynced: true
         };
         if (!local) {
           await db.sales.add(mapped);
         } else {
-          await db.sales.update(s.id, mapped);
+          await db.sales.update(local.id, mapped);
         }
       }
     }
@@ -18037,16 +18031,16 @@ const Users = {
   },
 
   async saveUserFromForm(e) {
-    if (e) e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
 
-    const fullName = document.getElementById('user-form-fullname').value.trim();
-    const username = document.getElementById('user-form-username').value.trim().toLowerCase();
-    const pin = document.getElementById('user-form-pin').value.trim();
-    const phone = document.getElementById('user-form-phone').value.trim();
-    const role = document.getElementById('user-form-role').value;
-    const routeVal = document.getElementById('user-form-route').value;
+    const fullName = document.getElementById('user-form-fullname')?.value?.trim() || '';
+    const username = document.getElementById('user-form-username')?.value?.trim()?.toLowerCase() || '';
+    const pin = document.getElementById('user-form-pin')?.value?.trim() || '';
+    const phone = document.getElementById('user-form-phone')?.value?.trim() || '';
+    const role = document.getElementById('user-form-role')?.value || 'rep';
+    const routeVal = document.getElementById('user-form-route')?.value || '';
     const assignedRouteId = routeVal ? Number(routeVal) : null;
-    const isActive = document.getElementById('user-form-active').checked;
+    const isActive = document.getElementById('user-form-active')?.checked !== false;
 
     if (!fullName || !username || !pin) {
       UI.showToast('Please fill in Name, Username, and 4-digit PIN.', 'warning');
@@ -18098,13 +18092,13 @@ const Users = {
       UI.closeModal('modal-user-form');
       await this.loadUsers();
 
-      // Trigger Cloud Sync in background
-      if (typeof CloudSync !== 'undefined') {
-        CloudSync.syncNow(false);
+      // Trigger Cloud Sync in background safely
+      if (typeof CloudSync !== 'undefined' && typeof CloudSync.syncNow === 'function') {
+        CloudSync.syncNow(false).catch(err => console.warn('[Background Sync]:', err));
       }
     } catch (err) {
       console.error('Error saving user:', err);
-      UI.showToast('Error: ' + err.message, 'error');
+      UI.showToast('Error saving user: ' + err.message, 'error');
     }
   },
 
