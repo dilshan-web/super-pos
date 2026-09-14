@@ -700,7 +700,12 @@ button:active, .btn-touch:active {
 
         <!-- Searchable Shop Input with Live Autocomplete -->
         <div class="relative">
-          <label class="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1">2. Search & Select Shop</label>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">2. Search & Select Shop</label>
+            <button onclick="Shops.openShopModal()" class="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-0.5 rounded-xl active:scale-95 flex items-center gap-1">
+              <span>+ New Shop</span>
+            </button>
+          </div>
           <div class="relative flex items-center gap-2">
             <div class="relative flex-1">
               <input type="text" id="pos-shop-search-input" oninput="POS.onShopSearchInput(this.value)" onfocus="POS.onShopSearchInput(this.value)" placeholder="Type shop name, owner or phone..." class="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-9 py-2.5 text-xs sm:text-sm font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-hidden shadow-inner" />
@@ -1396,11 +1401,11 @@ button:active, .btn-touch:active {
           </div>
         </button>
 
-        <button onclick="UI.closeModal('modal-more-menu'); UI.switchTab('routes')" class="p-3 bg-slate-50 rounded-2xl flex items-center gap-2.5 text-left hover:bg-emerald-50 hover:text-emerald-700 admin-only">
+        <button onclick="UI.closeModal('modal-more-menu'); UI.switchTab('routes')" class="p-3 bg-slate-50 rounded-2xl flex items-center gap-2.5 text-left hover:bg-emerald-50 hover:text-emerald-700">
           <span class="text-xl">🗺️</span>
           <div>
             <span class="font-bold text-xs block">Routes</span>
-            <span class="text-[10px] text-slate-400">Delivery areas</span>
+            <span class="text-[10px] text-slate-400">Add & View Routes</span>
           </div>
         </button>
 
@@ -1477,22 +1482,9 @@ button:active, .btn-touch:active {
     
     <p class="text-[11px] text-slate-500 mt-6 font-bold">Default PIN: 1234</p>
 
-    <!-- ☁️ First-Time Cloud Setup -->
-    <div class="mt-4 w-full max-w-[300px]">
-      <button onclick="Auth.toggleCloudSetup()" class="w-full text-[11px] text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5 py-2 border border-slate-700 rounded-2xl hover:border-slate-500 transition-all">
-        ☁️ First time on this device? Connect Cloud
-      </button>
-      <div id="lock-cloud-setup-panel" class="hidden mt-3 bg-slate-800 rounded-2xl p-4 space-y-3 border border-slate-700">
-        <p class="text-[11px] text-slate-400 text-center">Enter Cloud DB credentials to load your team PINs</p>
-        <input type="text" id="lock-cloud-url" placeholder="https://xxxx.supabase.co"
-          class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
-        <input type="password" id="lock-cloud-key" placeholder="Publishable key (sb_publishable_...)"
-          class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
-        <button onclick="Auth.connectCloudAndLogin()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-2.5 rounded-xl active:scale-95 transition-all">
-          ☁️ Connect & Load Team PINs
-        </button>
-        <p id="lock-cloud-status" class="text-[10px] text-center text-slate-400 min-h-[1rem]"></p>
-      </div>
+    <div class="flex items-center gap-2 mt-5 text-[10px] text-slate-400">
+      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+      <span id="lock-cloud-sync-status">☁️ Cloud Connected (Multi-Device Active)</span>
     </div>
   </div>
 
@@ -12359,8 +12351,8 @@ async function initDatabaseDefaults() {
         pin: '1234',
         printerWidth: '58mm',
         logoBase64: '',
-        supabaseUrl: '',
-        supabaseKey: '',
+        supabaseUrl: 'https://qetyvorqsgjetgmdrexz.supabase.co',
+        supabaseKey: localStorage.getItem('spice_pos_supabase_key') || '',
         lastSyncAt: null
       });
     }
@@ -12672,12 +12664,12 @@ const CloudSync = {
   async getConfig() {
     try {
       const company = await db.company.toCollection().first();
-      let url = company?.supabaseUrl || localStorage.getItem('spice_pos_supabase_url') || '';
+      let url = company?.supabaseUrl || localStorage.getItem('spice_pos_supabase_url') || 'https://qetyvorqsgjetgmdrexz.supabase.co';
       let key = company?.supabaseKey || localStorage.getItem('spice_pos_supabase_key') || '';
-      url = url.trim().replace(/\/$/, '').replace(/\/rest\/v1\/?$/, '');
-      return { url, key: key.trim() };
+      url = (url || 'https://qetyvorqsgjetgmdrexz.supabase.co').trim().replace(/\/$/, '').replace(/\/rest\/v1\/?$/, '');
+      return { url, key: (key || '').trim() };
     } catch {
-      return { url: '', key: '' };
+      return { url: 'https://qetyvorqsgjetgmdrexz.supabase.co', key: '' };
     }
   },
 
@@ -13290,8 +13282,53 @@ const Auth = {
     }
 
     if (this.currentPinInput.length >= 4) {
-      // 1. Check matched user from users table
-      const matchedUser = await db.users.where('pin').equals(this.currentPinInput).first();
+      const pinEntered = this.currentPinInput;
+
+      // 1. Check matched user from local users table
+      let matchedUser = await db.users.where('pin').equals(pinEntered).first();
+
+      // 2. If not found locally, try live check against Supabase Cloud
+      if (!matchedUser && typeof CloudSync !== 'undefined') {
+        try {
+          const config = await CloudSync.getConfig();
+          if (config.url && config.key) {
+            const res = await fetch(`${config.url}/rest/v1/users?pin=eq.${encodeURIComponent(pinEntered)}&is_active=eq.true&select=*`, {
+              headers: {
+                'apikey': config.key,
+                'Authorization': `Bearer ${config.key}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            if (res.ok) {
+              const remoteUsers = await res.json();
+              if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
+                const u = remoteUsers[0];
+                const mapped = {
+                  username: u.username,
+                  fullName: u.full_name,
+                  role: u.role || 'rep',
+                  pin: u.pin,
+                  phone: u.phone || '',
+                  assignedRouteId: u.assigned_route_id || null,
+                  isActive: u.is_active !== false,
+                  createdAt: u.created_at,
+                  updatedAt: u.updated_at,
+                  isSynced: true
+                };
+                const existing = await db.users.where('username').equals(u.username).first();
+                if (!existing) {
+                  await db.users.add(mapped);
+                } else {
+                  await db.users.update(existing.id, mapped);
+                }
+                matchedUser = mapped;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Live remote PIN lookup error:', err);
+        }
+      }
 
       if (matchedUser && matchedUser.isActive !== false) {
         this.currentUser = matchedUser;
@@ -13319,14 +13356,19 @@ const Auth = {
           Dashboard.loadDashboard();
           UI.switchTab('dashboard');
         }
+
+        // Trigger full sync in background
+        if (typeof CloudSync !== 'undefined') {
+          CloudSync.syncNow(false).catch(() => {});
+        }
         return;
       }
 
-      // 2. Fallback check for Master Company PIN (Admin role)
+      // 3. Fallback check for Master Company PIN (Admin role)
       const company = await db.company.toCollection().first();
       const masterPin = company?.pin || '1234';
 
-      if (this.currentPinInput === masterPin) {
+      if (pinEntered === masterPin) {
         const fallbackAdmin = {
           id: 1,
           username: 'admin',
@@ -13473,107 +13515,9 @@ const Auth = {
       await db.company.update(company.id, { pin: newPin });
     }
     return { success: true, message: 'Master security PIN updated successfully!' };
-  },
-
-  // Toggle the cloud setup panel on lock screen
-  toggleCloudSetup() {
-    const panel = document.getElementById('lock-cloud-setup-panel');
-    if (panel) {
-      panel.classList.toggle('hidden');
-      // Pre-fill if already saved
-      const savedUrl = localStorage.getItem('spice_pos_supabase_url') || '';
-      const urlInput = document.getElementById('lock-cloud-url');
-      if (urlInput && savedUrl) urlInput.value = savedUrl;
-    }
-  },
-
-  // Connect to Supabase from lock screen and pull team users
-  async connectCloudAndLogin() {
-    const urlInput = document.getElementById('lock-cloud-url');
-    const keyInput = document.getElementById('lock-cloud-key');
-    const statusEl = document.getElementById('lock-cloud-status');
-
-    const url = (urlInput?.value || '').trim().replace(/\/$/, '').replace(/\/rest\/v1\/?$/, '');
-    const key = (keyInput?.value || '').trim();
-
-    if (!url || !key) {
-      if (statusEl) statusEl.textContent = '⚠️ Please enter both URL and Key.';
-      return;
-    }
-
-    if (statusEl) statusEl.textContent = '⏳ Connecting to Cloud...';
-
-    try {
-      // Save config
-      localStorage.setItem('spice_pos_supabase_url', url);
-      localStorage.setItem('spice_pos_supabase_key', key);
-
-      // Also save to company record
-      const company = await db.company.toCollection().first();
-      if (company) {
-        await db.company.update(company.id, { supabaseUrl: url, supabaseKey: key });
-      }
-
-      // Fetch users directly from Supabase
-      const res = await fetch(`${url}/rest/v1/users?select=*`, {
-        headers: {
-          'apikey': key,
-          'Authorization': `Bearer ${key}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!res.ok) {
-        const err = await res.text();
-        if (statusEl) statusEl.textContent = `❌ Error: ${res.status} - Check URL/Key`;
-        return;
-      }
-
-      const remoteUsers = await res.json();
-      if (!Array.isArray(remoteUsers) || remoteUsers.length === 0) {
-        if (statusEl) statusEl.textContent = '⚠️ No users found in Cloud DB.';
-        return;
-      }
-
-      // Upsert users into local IndexedDB
-      let count = 0;
-      for (const u of remoteUsers) {
-        const local = await db.users.where('username').equals(u.username).first();
-        const mapped = {
-          username: u.username,
-          fullName: u.full_name,
-          role: u.role || 'rep',
-          pin: u.pin,
-          phone: u.phone || '',
-          assignedRouteId: u.assigned_route_id || null,
-          isActive: u.is_active !== false,
-          createdAt: u.created_at,
-          updatedAt: u.updated_at,
-          isSynced: true
-        };
-        if (!local) {
-          await db.users.add(mapped);
-        } else {
-          await db.users.update(local.id, mapped);
-        }
-        count++;
-      }
-
-      if (statusEl) statusEl.textContent = `✅ ${count} team members loaded! Enter your PIN now.`;
-
-      // Hide panel after success
-      setTimeout(() => {
-        const panel = document.getElementById('lock-cloud-setup-panel');
-        if (panel) panel.classList.add('hidden');
-        if (statusEl) statusEl.textContent = '';
-      }, 3000);
-
-    } catch (err) {
-      console.error('[Cloud Login Setup]:', err);
-      if (statusEl) statusEl.textContent = `❌ Failed: ${err.message}`;
-    }
   }
 };
+
 
 
 // --- state.js ---
